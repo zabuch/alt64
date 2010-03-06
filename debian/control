@@ -1,0 +1,13 @@
+Source: alt64
+Section: utils
+Priority: extra
+Maintainer: Tomasz Muras <nexor1984@gmail.com>
+Build-Depends: debhelper (>= 7)
+Standards-Version: 3.8.1
+Homepage: http://github.com/zabuch/alt64
+
+Package: alt64
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: <insert up to 60 chars description>
+ <insert long description, indented with spaces>
