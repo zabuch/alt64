@@ -14,12 +14,9 @@
 
 void logo ();
 void help (char* prog);
-void alt64 (char* input, size_t len, char* sep);
+void alt64 (char* input, size_t len, int fmt);
 
 extern int optopt, optind;
-
-static const char cb64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
-                           "ghijklmnopqrstuvwxyz0123456789+/";
 
 int main (int argc, char** argv)
 {
@@ -80,7 +77,7 @@ int main (int argc, char** argv)
     input[len] = 0;
     input[len + 1] = 0;
 
-    alt64(input, len, fmt == FMT_LINE ? "\n" : "|");
+    alt64(input, len, fmt);
 
     return (0);
 }
@@ -96,38 +93,54 @@ void help (char* prog)
     printf("Usage: %s -hvg [TEXT]\n", prog);
 }
 
-/*
-** encode_block
-**
-** encode 3 8-bit binary bytes as 4 '6-bit' characters
-*/
-void encode_block (unsigned char* in, unsigned char* out, int len)
+void base64_encode (char* out, unsigned char* in, size_t len)
 {
-    out[0] = cb64[ in[0] >> 2 ];
-    out[1] = cb64[ ((in[0] & 0x03) << 4) | ((in[1] & 0xF0) >> 4) ];
-    out[2] = (unsigned char) (len > 1 ? cb64[ ((in[1] & 0x0f) << 2) | ((in[2] & 0xc0) >> 6) ] : '=');
-    out[3] = (unsigned char) (len > 2 ? cb64[ in[2] & 0x3f ] : '=');
-}
+    static const char cb64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
+                               "ghijklmnopqrstuvwxyz0123456789+/";
 
-void base64_encode (char* output, unsigned char* input, size_t len)
-{
     size_t  i;
 
-    for (i = 0; i < len; i += 3, input += 3, output += 4)
+    for (i = 0; i < len; i += 3, in += 3)
     {
-        encode_block(input, output, len - i);
+        *out++ = cb64[in[0] >> 2];
+        *out++ = cb64[((in[0] & 0x03) << 4) | (in[1] >> 4)];
+        *out++ = cb64[((in[1] & 0x0F) << 2) | (in[2] >> 6)];
+        *out++ = cb64[in[2] & 0x3F];
     }
 }
 
-void alt64 (char* input, size_t len, char* sep)
+#define exact_out_len(_len) ((_len) / 3) * 4 + ((_len) % 3)
+
+/* input buffer *MUST* have two bytes accessable before and after
+   the relevant data 
+   */
+void alt64 (char* input, size_t len, int fmt)
 {
     char    out[(MAX_TEXT_LEN + 4) * 3 / 4 + 1];
-    int     sep_len;
+    int     sep_len, sep_last;
+    char*   sep;
 
+    switch (fmt)
+    {
+    case FMT_LINE:  sep = "\n"; sep_last = 1; break;
+    case FMT_GREP:  sep = "|";  sep_last = 0; break;
+    default:
+        fprintf(stderr, "BUG: bad format %d.\n", fmt);
+        exit(2);
+    }
     sep_len = strlen(sep);
+
     base64_encode(out, input, len);
-    fwrite(out, 1, (len / 3) * 4 + (len % 3), stdout);
+    fwrite(out, 1, exact_out_len(len), stdout);
     fwrite(sep, 1, sep_len, stdout);
+
+    base64_encode(out, input - 1, len + 1);
+    fwrite(&out[2], 1, exact_out_len(len + 1) - 2, stdout);
+    fwrite(sep, 1, sep_len, stdout);
+
+    base64_encode(out, input - 2, len + 2);
+    fwrite(&out[3], 1, exact_out_len(len + 2) - 3, stdout);
+    if (sep_last) fwrite(sep, 1, sep_len, stdout);
 }
 
 
